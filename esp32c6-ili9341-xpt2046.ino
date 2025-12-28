@@ -8,6 +8,11 @@
 #include <XPT2046_Touchscreen.h>
 #include <SPI.h>
 
+// Declare custom fonts (defined in roboto_mono_semibold_*.c)
+LV_FONT_DECLARE(roboto_mono_semibold_24);
+LV_FONT_DECLARE(roboto_mono_semibold_28);
+LV_FONT_DECLARE(roboto_mono_semibold_32);
+
 // Display pins
 #define TFT_CS   15
 #define TFT_DC   2
@@ -31,9 +36,12 @@ SPIClass touchSPI(FSPI);
 
 static lv_display_t *disp;
 static lv_obj_t *wind_speed_label;
+static lv_obj_t *wind_speed_units_label;
 static lv_obj_t *wind_dir_label;
 static lv_obj_t *wind_arrow;
 static lv_obj_t *compass_base;
+static lv_obj_t *units_btn;
+static lv_obj_t *menu_btn;
 static lv_point_precise_t arrow_points[4];
 
 // Simulated wind data
@@ -63,10 +71,47 @@ void my_touchpad_read(lv_indev_t *indev_drv, lv_indev_data_t *data) {
   }
 }
 
-void draw_compass_marks(lv_obj_t *parent) {
-  // Get parent dimensions
-  int cx = lv_obj_get_width(parent) / 2;
-  int cy = lv_obj_get_height(parent) / 2;
+void draw_compass_marks(lv_obj_t *parent, lv_obj_t *circle) {
+  // Circle is at (30, 30) within parent, with center at (90, 90) relative to circle
+  // But we need absolute positions within parent, so center is at (120, 120)
+  int cx = 120;
+  int cy = 120;
+  int circle_radius = 90;
+  
+  // Draw port (red) and starboard (green) sectors between 20° and 60°
+  // With rotation=270, angle 0 is at top (north)
+  // Starboard is 20°-60° clockwise from north
+  // Port is 300°-340° (or -60° to -20°)
+  
+  // Starboard (green) sector from 20° to 60°
+  lv_obj_t *stbd_arc = lv_arc_create(parent);
+  lv_obj_set_size(stbd_arc, 180, 180);
+  lv_obj_set_pos(stbd_arc, 30, 30);
+  lv_arc_set_bg_angles(stbd_arc, 20, 60);
+  lv_arc_set_angles(stbd_arc, 20, 60);  // Set the indicator angles
+  lv_arc_set_rotation(stbd_arc, 270);
+  lv_obj_set_style_arc_width(stbd_arc, 12, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_color(stbd_arc, lv_color_hex(0x00FF00), LV_PART_INDICATOR);
+  lv_obj_set_style_arc_opa(stbd_arc, LV_OPA_80, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_rounded(stbd_arc, false, LV_PART_INDICATOR);  // Flat ends
+  lv_obj_remove_style(stbd_arc, NULL, LV_PART_KNOB);
+  lv_obj_clear_flag(stbd_arc, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_arc_width(stbd_arc, 0, LV_PART_MAIN);
+  
+  // Port (red) sector from 300° to 340°
+  lv_obj_t *port_arc = lv_arc_create(parent);
+  lv_obj_set_size(port_arc, 180, 180);
+  lv_obj_set_pos(port_arc, 30, 30);
+  lv_arc_set_bg_angles(port_arc, 300, 340);
+  lv_arc_set_angles(port_arc, 300, 340);  // Set the indicator angles
+  lv_arc_set_rotation(port_arc, 270);
+  lv_obj_set_style_arc_width(port_arc, 12, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_color(port_arc, lv_color_hex(0xFF0000), LV_PART_INDICATOR);
+  lv_obj_set_style_arc_opa(port_arc, LV_OPA_80, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_rounded(port_arc, false, LV_PART_INDICATOR);  // Flat ends
+  lv_obj_remove_style(port_arc, NULL, LV_PART_KNOB);
+  lv_obj_clear_flag(port_arc, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_arc_width(port_arc, 0, LV_PART_MAIN);
   
   // Draw tick marks - major every 30°, minor every 10°
   for (int i = 0; i < 36; i++) {
@@ -75,41 +120,67 @@ void draw_compass_marks(lv_obj_t *parent) {
     
     int r1, r2, width;
     if (i % 3 == 0) {  // Every 30° - major ticks
-      r1 = 60;
-      r2 = 85;
-      width = 4;
+      r1 = 72;   // Inner radius (90 - 18)
+      r2 = 90;   // Outer radius
+      width = 3;
     } else {  // Every 10° - minor ticks
-      r1 = 70;
-      r2 = 85;
-      width = 2;
+      r1 = 78;   // Inner radius (90 - 12)
+      r2 = 90;   // Outer radius
+      width = 1;
     }
     
     lv_obj_t *line = lv_line_create(parent);
     
-    static lv_point_precise_t points[2];
-    points[0].x = cx + r1 * sin(rad);
-    points[0].y = cy - r1 * cos(rad);
-    points[1].x = cx + r2 * sin(rad);
-    points[1].y = cy - r2 * cos(rad);
+    // Allocate new points for each line (not static!)
+    lv_point_precise_t *line_points = (lv_point_precise_t*)malloc(2 * sizeof(lv_point_precise_t));
+    line_points[0].x = cx + r1 * sin(rad);
+    line_points[0].y = cy - r1 * cos(rad);
+    line_points[1].x = cx + r2 * sin(rad);
+    line_points[1].y = cy - r2 * cos(rad);
     
-    lv_line_set_points(line, points, 2);
+    lv_line_set_points(line, line_points, 2);
     lv_obj_set_style_line_width(line, width, 0);
     lv_obj_set_style_line_color(line, lv_color_black(), 0);
+  }
+  
+  // Draw angle labels at radius 105 (15px outside circle edge)
+  // Formula: x = cx + label_radius*sin(θ), y = cy - label_radius*cos(θ)
+  // Don't add half_font since we're centering with label_h/2
+  int label_radius = 105;
+  
+  int angles[] = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330};
+  const char* labels[] = {"0", "30", "60", "90", "120", "150", "180", "150", "120", "90", "60", "30"};
+  
+  for (int i = 0; i < 12; i++) {
+    float rad = angles[i] * 3.14159 / 180.0;
+    float x = cx + label_radius * sin(rad);
+    float y = cy - label_radius * cos(rad) + 2;  // Add 2px to move labels down
+    
+    lv_obj_t *label = lv_label_create(parent);
+    lv_label_set_text(label, labels[i]);
+    lv_obj_set_style_text_color(label, lv_color_black(), 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
+    
+    // Get label size to center it properly
+    lv_obj_update_layout(label);
+    int label_w = lv_obj_get_width(label);
+    int label_h = lv_obj_get_height(label);
+    
+    lv_obj_set_pos(label, x - label_w/2, y - label_h/2);
   }
 }
 
 void update_wind_display() {
-  // Update wind speed
-  lv_label_set_text_fmt(wind_speed_label, "%.1f kts", wind_speed);
+  // Update wind speed with fixed-width formatting (right-aligned)
+  char speed_buf[32];
+  snprintf(speed_buf, sizeof(speed_buf), "%4.1f", wind_speed);
+  lv_label_set_text(wind_speed_label, speed_buf);
   
-  // Update wind direction text
-  const char* cardinal[] = {"N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-                           "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"};
-  int idx = ((wind_direction + 11) / 22) % 16;
-  lv_label_set_text_fmt(wind_dir_label, "%d° %s", wind_direction, cardinal[idx]);
+  // Update wind direction angle with fixed-width formatting
+  lv_label_set_text_fmt(wind_dir_label, "%3d°", wind_direction);
   
-  // Calculate triangle
-  int cx = 90, cy = 90;
+  // Calculate arrow triangle - center at 120,120 in the 240x240 container
+  int cx = 120, cy = 120;
   float rad = wind_direction * 3.14159 / 180.0;
   float perpRad = rad + 3.14159 / 2;
   
@@ -158,61 +229,87 @@ void setup() {
   // Create UI - white background
   lv_obj_set_style_bg_color(lv_screen_active(), lv_color_white(), 0);
   
-  // Title
-  lv_obj_t *title = lv_label_create(lv_screen_active());
-  lv_label_set_text(title, "WIND");
-  lv_obj_set_style_text_color(title, lv_color_black(), 0);
-  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
-  
-  // Compass base - white with black border
+  // Compass base - white with black border, positioned higher (center at y=120)
+  // Make it larger (240x240) to accommodate labels outside the 180px circle
   compass_base = lv_obj_create(lv_screen_active());
-  lv_obj_set_size(compass_base, 180, 180);
-  lv_obj_center(compass_base);
+  lv_obj_set_size(compass_base, 240, 240);
+  lv_obj_set_pos(compass_base, 0, 0);  // Full width, starting at top
   lv_obj_set_style_bg_color(compass_base, lv_color_white(), 0);
-  lv_obj_set_style_border_color(compass_base, lv_color_black(), 0);
-  lv_obj_set_style_border_width(compass_base, 3, 0);
-  lv_obj_set_style_radius(compass_base, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_pad_all(compass_base, 0, 0);  // Remove all padding
+  lv_obj_set_style_bg_opa(compass_base, LV_OPA_TRANSP, 0);  // Transparent background
+  lv_obj_set_style_border_width(compass_base, 0, 0);  // No border on container
+  lv_obj_set_style_pad_all(compass_base, 0, 0);
+  lv_obj_set_style_clip_corner(compass_base, false, 0);  // Don't clip children
+  lv_obj_clear_flag(compass_base, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(compass_base, LV_OBJ_FLAG_OVERFLOW_VISIBLE);  // Allow overflow
   
-  // Draw compass tick marks
-  draw_compass_marks(compass_base);
+  // Draw the actual compass circle inside - just the border, transparent bg
+  lv_obj_t *circle = lv_obj_create(compass_base);
+  lv_obj_set_size(circle, 180, 180);
+  lv_obj_set_pos(circle, 30, 30);  // Center at (120, 120) within the 240x240 container
+  lv_obj_set_style_bg_opa(circle, LV_OPA_TRANSP, 0);  // Transparent so ticks show through
+  lv_obj_set_style_border_color(circle, lv_color_black(), 0);
+  lv_obj_set_style_border_width(circle, 2, 0);
+  lv_obj_set_style_radius(circle, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_pad_all(circle, 0, 0);
+  lv_obj_set_style_clip_corner(circle, false, 0);
+  lv_obj_add_flag(circle, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   
-  // Cardinal direction labels on compass
-  lv_obj_t *n_label = lv_label_create(compass_base);
-  lv_label_set_text(n_label, "N");
-  lv_obj_set_style_text_color(n_label, lv_color_black(), 0);
-  lv_obj_set_style_text_font(n_label, &lv_font_montserrat_14, 0);
-  lv_obj_align(n_label, LV_ALIGN_TOP_MID, 0, 8);
+  // Draw compass tick marks and labels AFTER the circle so they're on top
+  draw_compass_marks(compass_base, circle);
   
-  lv_obj_t *e_label = lv_label_create(compass_base);
-  lv_label_set_text(e_label, "E");
-  lv_obj_set_style_text_color(e_label, lv_color_black(), 0);
-  lv_obj_align(e_label, LV_ALIGN_RIGHT_MID, -8, 0);
-  
-  lv_obj_t *s_label = lv_label_create(compass_base);
-  lv_label_set_text(s_label, "S");
-  lv_obj_set_style_text_color(s_label, lv_color_black(), 0);
-  lv_obj_align(s_label, LV_ALIGN_BOTTOM_MID, 0, -8);
-  
-  lv_obj_t *w_label = lv_label_create(compass_base);
-  lv_label_set_text(w_label, "W");
-  lv_obj_set_style_text_color(w_label, lv_color_black(), 0);
-  lv_obj_align(w_label, LV_ALIGN_LEFT_MID, 8, 0);
-  
-  // Wind arrow (outlined triangle)
+  // Wind arrow (outlined triangle) - now on the 240x240 container
   wind_arrow = lv_line_create(compass_base);
   lv_obj_set_style_line_width(wind_arrow, 4, 0);
   lv_obj_set_style_line_color(wind_arrow, lv_color_hex(0xFF0000), 0);
   
-  // Wind speed label
+  // Wind speed label (left side, 28px font, right-aligned)
   wind_speed_label = lv_label_create(lv_screen_active());
   lv_obj_set_style_text_color(wind_speed_label, lv_color_black(), 0);
-  lv_obj_align(wind_speed_label, LV_ALIGN_BOTTOM_MID, 0, -60);
+  lv_obj_set_style_text_font(wind_speed_label, &roboto_mono_semibold_28, 0);
+  lv_label_set_text(wind_speed_label, "12.5");
+  lv_obj_set_width(wind_speed_label, 75);  // Fixed width for number only
+  lv_obj_set_style_text_align(wind_speed_label, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_set_pos(wind_speed_label, 5, 242);  // Adjusted position
   
-  // Wind direction label
+  // Wind speed units label (14px font, positioned to align right edge with button at x=110)
+  wind_speed_units_label = lv_label_create(lv_screen_active());
+  lv_obj_set_style_text_color(wind_speed_units_label, lv_color_black(), 0);
+  lv_obj_set_style_text_font(wind_speed_units_label, &lv_font_montserrat_14, 0);
+  lv_label_set_text(wind_speed_units_label, "kts");
+  lv_obj_set_pos(wind_speed_units_label, 82, 252);  // Adjusted for baseline alignment
+  
+  // Wind direction label (right side, 28px font, right-aligned to menu button at x=230)
   wind_dir_label = lv_label_create(lv_screen_active());
   lv_obj_set_style_text_color(wind_dir_label, lv_color_black(), 0);
-  lv_obj_align(wind_dir_label, LV_ALIGN_BOTTOM_MID, 0, -30);
+  lv_obj_set_style_text_font(wind_dir_label, &roboto_mono_semibold_28, 0);
+  lv_label_set_text(wind_dir_label, "45°");
+  lv_obj_align(wind_dir_label, LV_ALIGN_TOP_RIGHT, -10, 242);  // Adjusted position
+  
+  // Units button (bottom left)
+  units_btn = lv_button_create(lv_screen_active());
+  lv_obj_set_size(units_btn, 100, 30);
+  lv_obj_set_pos(units_btn, 10, 280);
+  lv_obj_set_style_bg_color(units_btn, lv_color_white(), 0);
+  lv_obj_set_style_border_color(units_btn, lv_color_black(), 0);
+  lv_obj_set_style_border_width(units_btn, 2, 0);
+  
+  lv_obj_t *units_label = lv_label_create(units_btn);
+  lv_label_set_text(units_label, "UNITS");
+  lv_obj_set_style_text_color(units_label, lv_color_black(), 0);
+  lv_obj_center(units_label);
+  
+  // Menu button (bottom right)
+  menu_btn = lv_button_create(lv_screen_active());
+  lv_obj_set_size(menu_btn, 100, 30);
+  lv_obj_set_pos(menu_btn, 130, 280);
+  lv_obj_set_style_bg_color(menu_btn, lv_color_white(), 0);
+  lv_obj_set_style_border_color(menu_btn, lv_color_black(), 0);
+  lv_obj_set_style_border_width(menu_btn, 2, 0);
+  
+  lv_obj_t *menu_label = lv_label_create(menu_btn);
+  lv_label_set_text(menu_label, "MENU");
+  lv_obj_set_style_text_color(menu_label, lv_color_black(), 0);
+  lv_obj_center(menu_label);
   
   update_wind_display();
   
