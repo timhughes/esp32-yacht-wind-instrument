@@ -1,6 +1,10 @@
 /*
   Yacht Wind Direction Display - ESP32-C6 + ILI9341 + LVGL
+  
+  A marine wind instrument that displays apparent wind speed and direction.
+  Connects to Signal K servers via WiFi for real-time data.
 */
+#define VERSION "0.1.0"
 
 #include <lvgl.h>
 #include <Adafruit_GFX.h>
@@ -8,10 +12,18 @@
 #include <XPT2046_Touchscreen.h>
 #include <SPI.h>
 
+// Wind data source abstraction
+#include "WindDataSource.h"
+#include "WindDataSourceManager.h"
+#include "DemoWindDataSource.h"
+#include "SignalKWindDataSource.h"
+#include "WindConfig.h"
+#include "ConfigScreen.h"
+
 // Declare custom fonts (defined in roboto_mono_semibold_*.c)
 LV_FONT_DECLARE(roboto_mono_semibold_24);
-LV_FONT_DECLARE(roboto_mono_semibold_28);
 LV_FONT_DECLARE(roboto_mono_semibold_32);
+LV_FONT_DECLARE(dejavu_sans_bold_24_dots);
 
 // Display pins
 #define TFT_CS   15
@@ -27,6 +39,11 @@ LV_FONT_DECLARE(roboto_mono_semibold_32);
 #define TOUCH_MISO 8
 #define TOUCH_IRQ  9
 
+// Test mode - set to 1 to run tests instead of normal display
+// #define RUN_TESTS 0  // Removed to save flash space
+
+
+
 #define SCREEN_WIDTH  240
 #define SCREEN_HEIGHT 320
 
@@ -40,13 +57,21 @@ static lv_obj_t *wind_speed_units_label;
 static lv_obj_t *wind_dir_label;
 static lv_obj_t *wind_arrow;
 static lv_obj_t *compass_base;
-static lv_obj_t *units_btn;
 static lv_obj_t *menu_btn;
-static lv_point_precise_t arrow_points[4];
+static lv_obj_t *status_label;  // Connection status
+static lv_obj_t *main_screen;  // Store main screen reference
+static lv_point_precise_t arrow_points[2];  // Just 2 points for a line
 
-// Simulated wind data
-float wind_speed = 12.5;  // knots
-int wind_direction = 45;  // degrees
+// Wind data source
+WindDataSourceManager sourceManager;
+DemoWindDataSource* demoSource = nullptr;
+SignalKWindDataSource* signalKSource = nullptr;
+WindConfig windConfig;
+ConfigScreen *configScreen = nullptr;
+
+// Current wind data (in internal units: m/s and degrees)
+float wind_speed_ms = 0.0;   // m/s
+float wind_direction = 0.0;  // degrees
 
 void my_disp_flush(lv_display_t *display, const lv_area_t *area, uint8_t *px_map) {
   uint32_t w = lv_area_get_width(area);
@@ -171,35 +196,121 @@ void draw_compass_marks(lv_obj_t *parent, lv_obj_t *circle) {
 }
 
 void update_wind_display() {
+  // Get data from current source
+  WindDataSource* dataSource = sourceManager.getCurrentSource();
+  if (dataSource && dataSource->isConnected()) {
+    wind_speed_ms = dataSource->getWindSpeed();
+    wind_direction = dataSource->getWindAngle();
+  }
+  
+  // Convert speed using configured units
+  float wind_speed_display = windConfig.convertSpeed(wind_speed_ms);
+  
   // Update wind speed with fixed-width formatting (right-aligned)
   char speed_buf[32];
-  snprintf(speed_buf, sizeof(speed_buf), "%4.1f", wind_speed);
+  snprintf(speed_buf, sizeof(speed_buf), "%4.1f", wind_speed_display);
   lv_label_set_text(wind_speed_label, speed_buf);
   
-  // Update wind direction angle with fixed-width formatting
-  lv_label_set_text_fmt(wind_dir_label, "%3d°", wind_direction);
+  // Update units label
+  lv_label_set_text(wind_speed_units_label, windConfig.getUnitsLabel());
   
-  // Calculate arrow triangle - center at 120,120 in the 240x240 container
+  // Update wind direction angle with fixed-width formatting
+  lv_label_set_text_fmt(wind_dir_label, "%3d°", (int)wind_direction);
+  
+  // Calculate arrow line - center at 120,120 in the 240x240 container
   int cx = 120, cy = 120;
   float rad = wind_direction * 3.14159 / 180.0;
-  float perpRad = rad + 3.14159 / 2;
   
-  arrow_points[0].x = cx + 60 * sin(rad);
-  arrow_points[0].y = cy - 60 * cos(rad);
+  // Line from center to edge (70px length)
+  arrow_points[0].x = cx;
+  arrow_points[0].y = cy;
   
-  arrow_points[1].x = cx + 4 * sin(perpRad);
-  arrow_points[1].y = cy - 4 * cos(perpRad);
+  arrow_points[1].x = cx + 70 * sin(rad);
+  arrow_points[1].y = cy - 70 * cos(rad);
   
-  arrow_points[2].x = cx - 4 * sin(perpRad);
-  arrow_points[2].y = cy + 4 * cos(perpRad);
+  lv_line_set_points(wind_arrow, arrow_points, 2);
+}
+
+// Restart data source after config change
+void restartDataSource() {
+  Serial.println("[Restart] Starting data source restart");
+  DataSourceType sourceType = windConfig.getDataSource();
+  Serial.printf("[Restart] Target source type: %d\n", sourceType);
   
-  arrow_points[3] = arrow_points[0];
+  // Reset display values
+  wind_speed_ms = 0.0;
+  wind_direction = 0.0;
   
-  lv_line_set_points(wind_arrow, arrow_points, 4);
+  if (sourceType == SOURCE_WIFI_SIGNALK) {
+    Serial.println("[Restart] Switching to SignalK");
+    // Clean up demo source if it exists
+    if (demoSource) {
+      Serial.println("[Restart] Cleaning up demo source");
+      if (sourceManager.getCurrentSource() == demoSource) {
+        sourceManager.switchSource(nullptr, SOURCE_DEMO);
+      }
+      delete demoSource;
+      demoSource = nullptr;
+    }
+    
+    // Clean up old Signal K source
+    if (signalKSource) {
+      Serial.println("[Restart] Cleaning up old SignalK source");
+      if (sourceManager.getCurrentSource() == signalKSource) {
+        sourceManager.switchSource(nullptr, SOURCE_WIFI_SIGNALK);
+      }
+      delete signalKSource;
+    }
+    
+    // Create new Signal K source with updated settings
+    Serial.println("[Restart] Creating new SignalK source");
+    signalKSource = new SignalKWindDataSource(
+      windConfig.getWifiSSID(),
+      windConfig.getWifiPassword(),
+      windConfig.getSignalKHost(),
+      windConfig.getSignalKPort()
+    );
+    
+    if (!sourceManager.switchSource(signalKSource, SOURCE_WIFI_SIGNALK)) {
+      Serial.println("[Restart] SignalK failed, falling back to demo");
+      // Fallback to demo
+      demoSource = new DemoWindDataSource();
+      sourceManager.switchSource(demoSource, SOURCE_DEMO);
+    }
+  } else {
+    Serial.println("[Restart] Switching to Demo");
+    // Clean up Signal K source if it exists
+    if (signalKSource) {
+      Serial.println("[Restart] Cleaning up SignalK source");
+      if (sourceManager.getCurrentSource() == signalKSource) {
+        sourceManager.switchSource(nullptr, SOURCE_WIFI_SIGNALK);
+      }
+      delete signalKSource;
+      signalKSource = nullptr;
+    }
+    
+    // Create demo source if needed
+    if (!demoSource) {
+      Serial.println("[Restart] Creating new demo source");
+      demoSource = new DemoWindDataSource();
+    }
+    sourceManager.switchSource(demoSource, SOURCE_DEMO);
+  }
+  Serial.println("[Restart] Data source restart complete");
+}
+
+// Button event handlers
+void menu_button_clicked(lv_event_t * e) {
+  if (configScreen) {
+    configScreen->show();
+  }
 }
 
 void setup() {
   Serial.begin(115200);
+  delay(100);
+  Serial.println("\n\n=== Yacht Wind Display v" VERSION " ===");
+  Serial.println("Initializing...");
   
   // Initialize display
   SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
@@ -225,6 +336,9 @@ void setup() {
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, my_touchpad_read);
   lv_indev_set_display(indev, disp);
+  
+  // Store reference to main screen
+  main_screen = lv_screen_active();
   
   // Create UI - white background
   lv_obj_set_style_bg_color(lv_screen_active(), lv_color_white(), 0);
@@ -257,73 +371,92 @@ void setup() {
   // Draw compass tick marks and labels AFTER the circle so they're on top
   draw_compass_marks(compass_base, circle);
   
-  // Wind arrow (outlined triangle) - now on the 240x240 container
+  // Wind arrow (fat line from center) - on the 240x240 container
   wind_arrow = lv_line_create(compass_base);
-  lv_obj_set_style_line_width(wind_arrow, 4, 0);
+  lv_obj_set_style_line_width(wind_arrow, 8, 0);  // Thicker line
   lv_obj_set_style_line_color(wind_arrow, lv_color_hex(0xFF0000), 0);
+  lv_obj_set_style_line_rounded(wind_arrow, true, 0);  // Rounded ends
   
-  // Wind speed label (left side, 28px font, right-aligned)
+  // Wind speed label (left side, 32px font, right-aligned)
   wind_speed_label = lv_label_create(lv_screen_active());
   lv_obj_set_style_text_color(wind_speed_label, lv_color_black(), 0);
-  lv_obj_set_style_text_font(wind_speed_label, &roboto_mono_semibold_28, 0);
+  lv_obj_set_style_text_font(wind_speed_label, &roboto_mono_semibold_32, 0);
   lv_label_set_text(wind_speed_label, "12.5");
-  lv_obj_set_width(wind_speed_label, 75);  // Fixed width for number only
+  lv_obj_set_width(wind_speed_label, 90);  // Fixed width for number
   lv_obj_set_style_text_align(wind_speed_label, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_set_pos(wind_speed_label, 5, 242);  // Adjusted position
+  lv_obj_set_pos(wind_speed_label, 5, 280);  // Bottom aligned
   
-  // Wind speed units label (14px font, positioned to align right edge with button at x=110)
+  // Wind speed units label (14px font, baseline aligned with speed)
   wind_speed_units_label = lv_label_create(lv_screen_active());
   lv_obj_set_style_text_color(wind_speed_units_label, lv_color_black(), 0);
   lv_obj_set_style_text_font(wind_speed_units_label, &lv_font_montserrat_14, 0);
   lv_label_set_text(wind_speed_units_label, "kts");
-  lv_obj_set_pos(wind_speed_units_label, 82, 252);  // Adjusted for baseline alignment
+  lv_obj_set_pos(wind_speed_units_label, 98, 298);  // Baseline aligned with 32px font
   
-  // Wind direction label (right side, 28px font, right-aligned to menu button at x=230)
+  // Wind direction label (right side, 32px font, right-aligned)
   wind_dir_label = lv_label_create(lv_screen_active());
   lv_obj_set_style_text_color(wind_dir_label, lv_color_black(), 0);
-  lv_obj_set_style_text_font(wind_dir_label, &roboto_mono_semibold_28, 0);
+  lv_obj_set_style_text_font(wind_dir_label, &roboto_mono_semibold_32, 0);
   lv_label_set_text(wind_dir_label, "45°");
-  lv_obj_align(wind_dir_label, LV_ALIGN_TOP_RIGHT, -10, 242);  // Adjusted position
+  lv_obj_align(wind_dir_label, LV_ALIGN_TOP_RIGHT, -10, 280);  // Bottom aligned
   
-  // Units button (bottom left)
-  units_btn = lv_button_create(lv_screen_active());
-  lv_obj_set_size(units_btn, 100, 30);
-  lv_obj_set_pos(units_btn, 10, 280);
-  lv_obj_set_style_bg_color(units_btn, lv_color_white(), 0);
-  lv_obj_set_style_border_color(units_btn, lv_color_black(), 0);
-  lv_obj_set_style_border_width(units_btn, 2, 0);
+  // Status label (top left, small)
+  status_label = lv_label_create(lv_screen_active());
+  lv_label_set_text(status_label, "");
+  lv_obj_set_style_text_color(status_label, lv_color_hex(0x808080), 0);
+  lv_obj_set_style_text_font(status_label, &lv_font_montserrat_14, 0);
+  lv_obj_align(status_label, LV_ALIGN_TOP_LEFT, 5, 2);
   
-  lv_obj_t *units_label = lv_label_create(units_btn);
-  lv_label_set_text(units_label, "UNITS");
-  lv_obj_set_style_text_color(units_label, lv_color_black(), 0);
-  lv_obj_center(units_label);
-  
-  // Menu button (bottom right)
+  // Menu button (three dots in top right corner)
   menu_btn = lv_button_create(lv_screen_active());
-  lv_obj_set_size(menu_btn, 100, 30);
-  lv_obj_set_pos(menu_btn, 130, 280);
-  lv_obj_set_style_bg_color(menu_btn, lv_color_white(), 0);
-  lv_obj_set_style_border_color(menu_btn, lv_color_black(), 0);
-  lv_obj_set_style_border_width(menu_btn, 2, 0);
+  lv_obj_set_size(menu_btn, 35, 35);
+  lv_obj_align(menu_btn, LV_ALIGN_TOP_RIGHT, -2, 5);
+  lv_obj_set_style_bg_opa(menu_btn, LV_OPA_TRANSP, 0);  // Transparent background
+  lv_obj_set_style_border_width(menu_btn, 0, 0);  // No border
+  lv_obj_set_style_shadow_width(menu_btn, 0, 0);  // No shadow
+  lv_obj_add_event_cb(menu_btn, menu_button_clicked, LV_EVENT_CLICKED, NULL);
   
   lv_obj_t *menu_label = lv_label_create(menu_btn);
-  lv_label_set_text(menu_label, "MENU");
+  lv_label_set_text(menu_label, "⋮");  // Vertical ellipsis
   lv_obj_set_style_text_color(menu_label, lv_color_black(), 0);
+  lv_obj_set_style_text_font(menu_label, &dejavu_sans_bold_24_dots, 0);
   lv_obj_center(menu_label);
+  
+  // Load configuration and start data source
+  windConfig.load();
+  restartDataSource();
   
   update_wind_display();
   
-  Serial.println("Wind display initialized");
+  // Create config screen
+  configScreen = new ConfigScreen(main_screen, &windConfig, &sourceManager, restartDataSource);
 }
 
 void loop() {
-  // Simulate changing wind (for demo)
-  static unsigned long last_update = 0;
-  if (millis() - last_update > 200) {  // Update every 200ms (5 times per second)
-    wind_direction = (wind_direction + 1) % 360;
-    wind_speed = 10.0 + random(0, 50) / 10.0;
+  // Update data source
+  sourceManager.update();
+  
+  // Update display
+  static unsigned long last_display_update = 0;
+  if (millis() - last_display_update > 100) {
     update_wind_display();
-    last_update = millis();
+    
+    // Update status
+    if (sourceManager.getCurrentType() == SOURCE_WIFI_SIGNALK) {
+      if (WiFi.status() == WL_CONNECTED) {
+        if (sourceManager.isConnected()) {
+          lv_label_set_text(status_label, "SignalK");
+        } else {
+          lv_label_set_text(status_label, "WiFi OK");
+        }
+      } else {
+        lv_label_set_text(status_label, "WiFi...");
+      }
+    } else {
+      lv_label_set_text(status_label, "Demo");
+    }
+    
+    last_display_update = millis();
   }
   
   lv_timer_handler();

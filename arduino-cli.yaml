@@ -1,0 +1,16 @@
+board_manager:
+  additional_urls:
+    - https://espressif.github.io/arduino-esp32/package_esp32_index.json
+
+# Default board configuration for ESP32-C6
+default_fqbn: esp32:esp32:esp32c6:PartitionScheme=huge_app,FlashMode=qio,FlashFreq=80,UploadSpeed=921600
+
+# Default serial port (adjust for your system)
+# Linux: /dev/ttyACM0 or /dev/ttyUSB0
+# macOS: /dev/cu.usbserial-*
+# Windows: COM3, COM4, etc.
+default_port: /dev/ttyACM0
+
+# Library dependencies
+library:
+  enable_unsafe_install: false

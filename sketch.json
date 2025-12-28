@@ -1,0 +1,7 @@
+{
+  "cpu": {
+    "fqbn": "esp32:esp32:esp32c6:PartitionScheme=huge_app,FlashMode=qio,FlashFreq=80,UploadSpeed=921600",
+    "name": "ESP32C6 Dev Module",
+    "type": "serial"
+  }
+}
