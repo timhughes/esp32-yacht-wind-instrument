@@ -1,0 +1,126 @@
+<svg width="240" height="320" xmlns="http://www.w3.org/2000/svg">
+  <!-- White background -->
+  <rect width="240" height="320" fill="white"/>
+  
+  <!-- Compass circle (center 120,120, radius 90) -->
+  <circle cx="120" cy="120" r="90" fill="white" stroke="black" stroke-width="2"/>
+  
+  <!-- Port (red) and Starboard (green) indicators between 20° and 60° -->
+  <!-- Ring segment between radius 78 (inner) and 90 (outer) -->
+  
+  <!-- Starboard side (green) from 20° to 60° -->
+  <path d="M 150.8 35.4
+           A 90 90 0 0 1 197.9 75.0
+           L 187.5 81.0
+           A 78 78 0 0 0 146.7 46.7
+           Z" 
+        fill="green" opacity="0.8"/>
+  
+  <!-- Port side (red) from 300° to 340° (20° to 60° on port) -->
+  <path d="M 89.2 35.4
+           A 90 90 0 0 0 42.1 75.0
+           L 52.5 81.0
+           A 78 78 0 0 1 93.3 46.7
+           Z" 
+        fill="red" opacity="0.8"/>
+  
+  <!-- Major ticks every 30° (radial) -->
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(30 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(60 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(90 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(120 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(150 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(180 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(210 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(240 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(270 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(300 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="48" stroke="black" stroke-width="2.5" transform="rotate(330 120 120)"/>
+  
+  <!-- Minor ticks every 10° -->
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(10 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(20 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(40 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(50 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(70 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(80 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(100 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(110 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(130 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(140 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(160 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(170 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(190 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(200 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(220 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(230 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(250 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(260 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(280 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(290 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(310 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(320 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(340 120 120)"/>
+  <line x1="120" y1="30" x2="120" y2="42" stroke="black" stroke-width="1.2" transform="rotate(350 120 120)"/>
+  
+
+  
+  <!-- Upright labels at radius 105 (15px outside circle) -->
+  <!-- x = 120 + 105*sin(θ), y = 120 - 105*cos(θ) + 10 (half font height) -->
+  
+  <!-- 0° -->
+  <text x="120" y="25" text-anchor="middle" font-size="20" font-weight="bold">0</text>
+  
+  <!-- 30° starboard -->
+  <text x="172.5" y="39.1" text-anchor="middle" font-size="20" font-weight="bold">30</text>
+  
+  <!-- 60° starboard -->
+  <text x="210.9" y="77.5" text-anchor="middle" font-size="20" font-weight="bold">60</text>
+  
+  <!-- 90° starboard -->
+  <text x="225" y="130" text-anchor="middle" font-size="20" font-weight="bold">90</text>
+  
+  <!-- 120° starboard -->
+  <text x="210.9" y="182.5" text-anchor="middle" font-size="20" font-weight="bold">120</text>
+  
+  <!-- 150° starboard -->
+  <text x="172.5" y="220.9" text-anchor="middle" font-size="20" font-weight="bold">150</text>
+  
+  <!-- 180° -->
+  <text x="120" y="235" text-anchor="middle" font-size="20" font-weight="bold">180</text>
+  
+  <!-- 150° port -->
+  <text x="67.5" y="220.9" text-anchor="middle" font-size="20" font-weight="bold">150</text>
+  
+  <!-- 120° port -->
+  <text x="29.1" y="182.5" text-anchor="middle" font-size="20" font-weight="bold">120</text>
+  
+  <!-- 90° port -->
+  <text x="15" y="130" text-anchor="middle" font-size="20" font-weight="bold">90</text>
+  
+  <!-- 60° port -->
+  <text x="29.1" y="77.5" text-anchor="middle" font-size="20" font-weight="bold">60</text>
+  
+  <!-- 30° port -->
+  <text x="67.5" y="39.1" text-anchor="middle" font-size="20" font-weight="bold">30</text>
+  
+  <!-- Wind speed and angle at bottom -->
+  <!-- Wind speed on left -->
+  <text x="30" y="260" text-anchor="start" font-size="24" font-weight="bold" font-family="monospace">12.5<tspan font-size="12" dx="2">kts</tspan></text>
+  
+  <!-- Wind angle on right -->
+  <text x="210" y="260" text-anchor="end" font-size="24" font-weight="bold" font-family="monospace">45°</text>
+  
+  <!-- Buttons at bottom -->
+  <!-- Units button (left) -->
+  <rect x="10" y="280" width="100" height="30" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="60" y="302" text-anchor="middle" font-size="14" font-weight="bold">UNITS</text>
+  
+  <!-- Menu button (right) -->
+  <rect x="130" y="280" width="100" height="30" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="180" y="302" text-anchor="middle" font-size="14" font-weight="bold">MENU</text>
+  
+  <!-- Center dot -->
+  <circle cx="120" cy="120" r="2" fill="black"/>
+</svg>
