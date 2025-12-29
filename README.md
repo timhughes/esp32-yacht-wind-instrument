@@ -417,10 +417,3 @@ Connect to Serial Monitor at 115200 baud to see debug output:
 - Signal K: <https://signalk.org/>
 - ESP32 Arduino Core: <https://github.com/espressif/arduino-esp32>
 
-## Contributing
-
-[Add contribution guidelines if open source]
-
-## Support
-
-[Add support contact information]
