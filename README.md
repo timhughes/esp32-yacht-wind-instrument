@@ -408,7 +408,8 @@ Connect to Serial Monitor at 115200 baud to see debug output:
 
 ## License
 
-[Add your license here]
+GNU General Public License v3.0 or later
+ https://www.gnu.org/licenses/gpl-3.0.en.html#license-text
 
 ## Credits
 
